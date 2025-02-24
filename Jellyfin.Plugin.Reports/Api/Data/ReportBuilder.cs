@@ -1,4 +1,4 @@
-﻿#nullable disable
+#nullable disable
 
 using System.Collections.Generic;
 using System.Globalization;
@@ -539,7 +539,39 @@ namespace Jellyfin.Plugin.Reports.Api.Data
                     break;
 
                 case HeaderMetadata.Filesize:
-                    option.Column = (i, r) => i.GetMediaSources(false).FirstOrDefault()?.Size;
+                    option.Column = (i, r) =>
+                    {
+                        List<BaseItem> itemsToCount = new List<BaseItem>();
+                        
+                        if (i is Season season)
+                        {
+                            // Aggregate the filesize of all episodes within the season
+                            return season.GetRecursiveChildren().Sum(e => e.GetMediaSources(false).FirstOrDefault()?.Size ?? 0);
+                        }
+                        else if (i is Series series)
+                        {
+                            // Aggregate the filesize of all seasons within the series
+                            var seasons = series.GetRecursiveChildren();
+                            foreach (var item in seasons)
+                            {
+                               if(item is Season seriesSeason)
+                                {
+                                    itemsToCount.AddRange(seriesSeason.GetRecursiveChildren());
+                                } 
+                            }
+                        } else
+                        {
+                            // item is not a wrapper (movie, episode etc.)
+                            itemsToCount.Add(i);
+                        }
+
+                        long totalSize = 0;
+                        foreach (var item in itemsToCount)
+                        {
+                            totalSize += item.GetMediaSources(false).FirstOrDefault()?.Size ?? 0;
+                        }
+                        return totalSize;
+                    };
                     option.Header.HeaderFieldType = ReportFieldType.Int;
                     option.Header.SortField = "Size,SortName";
                     break;
